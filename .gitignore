@@ -3,3 +3,4 @@
 .env
 NOTE.md
 node_modules/
+prisma/generated/
