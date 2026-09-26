@@ -35,14 +35,18 @@ export const getUserById = async (userId: string) => {
   }
 };
 
-export const createUser = async (userData: {
+export const insertUser = async (userData: {
   name: string;
   email: string;
-  password_hash: string;
+  password: string;
 }) => {
   try {
     const newUser = await db.user.create({
-      data: userData,
+      data: {
+        name: userData.name,
+        email: userData.email,
+        password_hash: userData.password,
+      },
     });
     return newUser;
   } catch (error) {
