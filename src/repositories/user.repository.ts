@@ -23,6 +23,19 @@ export const getUserByEmail = async (email: string) => {
   }
 };
 
+export const findUserWithPasswordByEmail = async (email: string) => {
+  return await db.user.findUnique({
+    where: { email },
+    // Select password alongside other required auth fields
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      password: true,
+    },
+  });
+};
+
 export const getUserById = async (userId: string) => {
   try {
     const user = await db.user.findUnique({
@@ -45,7 +58,7 @@ export const insertUser = async (userData: {
       data: {
         name: userData.name,
         email: userData.email,
-        password_hash: userData.password,
+        password: userData.password,
       },
     });
     return newUser;
@@ -78,6 +91,75 @@ export const deleteUser = async (userId: string) => {
     });
   } catch (error) {
     logger.error(`Error deleting user: ${error}`);
+    throw error;
+  }
+};
+
+export const storeRefreshToken = async (
+  userId: string,
+  refreshTokenHash: string,
+) => {
+  try {
+    await db.accessToken.create({
+      data: {
+        userId,
+        token: refreshTokenHash,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+      },
+    });
+  } catch (error) {
+    logger.error(`Error storing refresh token: ${error}`);
+    throw error;
+  }
+};
+
+export const getRefreshTokenByHash = async (refreshTokenHash: string) => {
+  try {
+    const tokenRecord = await db.accessToken.findUnique({
+      where: { token: refreshTokenHash },
+    });
+    return tokenRecord;
+  } catch (error) {
+    logger.error(`Error fetching refresh token: ${error}`);
+    throw error;
+  }
+};
+
+export const deleteRefreshToken = async (refreshTokenHash: string) => {
+  try {
+    await db.accessToken.delete({
+      where: { token: refreshTokenHash },
+    });
+  } catch (error) {
+    logger.error(`Error deleting refresh token: ${error}`);
+    throw error;
+  }
+};
+
+export const createUserRole = async (userId: string, roleId: string) => {
+  try {
+    const userRole = await db.userRole.create({
+      data: {
+        userId,
+        roleId,
+      },
+    });
+
+    return userRole;
+  } catch (error) {
+    logger.error(`Error creating user role: ${error}`);
+    throw error;
+  }
+};
+
+export const getDefaultRole = async () => {
+  try {
+    const defaultRole = await db.role.findFirst({
+      where: { isDefault: true },
+    });
+    return defaultRole;
+  } catch (error) {
+    logger.error(`Error fetching default role: ${error}`);
     throw error;
   }
 };

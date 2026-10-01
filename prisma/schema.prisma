@@ -12,15 +12,22 @@ datasource db {
   provider = "postgresql"
 }
 
-enum UserRole {
-  USER
-  ADMIN
-}
 enum Tiers {
-  FREE
-  ENTERPRISE
+  free
+  pro
+  enterprise
 }
 
+enum UserType {
+  user
+  admin
+}
+
+enum UserStatus {
+  pending
+  active
+  suspended
+}
 enum DocumentStatus {
   PROCESSING
   READY
@@ -28,15 +35,90 @@ enum DocumentStatus {
 }
 
 model User {
-  id           String     @id @default(cuid())
-  name        String     
-  email        String     @unique
-  password_hash String
-  tier          Tiers  @default(FREE)   
-  role         UserRole   @default(USER)
+  id            String     @id @default(uuid())
+  name          String
+  email         String     @unique
+  password      String
+  status        UserStatus @default(pending)
+  tier          Tiers      @default(free)
+  role          UserType   @default(user)
+  roles         UserRole[]
+
+  updatedAt    DateTime  @updatedAt
+  createdAt    DateTime      @default(now())
+  accessTokens AccessToken[]
 
   @@index([email])
   @@index([id])
 }
 
+model AccessToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique // SHA-256 hash of the actual token
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique // 'admin', 'member', 'viewer'
+  description String?
+  isDefault   Boolean  @default(false) // New users get this role
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       UserRole[]
+  permissions RolePermission[]
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  name        String   @unique // 'documents:create'
+  description String?
+  resource    String // 'documents'
+  action      String // 'create'
+  createdAt   DateTime @default(now())
+
+  roles RolePermission[]
+
+  @@unique([resource, action])
+}
+
+model UserRole {
+  userId     String
+  roleId     String
+  assignedAt DateTime @default(now())
+  assignedBy String? // Who assigned this role (for audit)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+model WebhookEvent {
+  id           String   @id  // The provider's event ID
+  provider     String         // 'stripe', 'github', etc.
+  eventType    String         // 'payment.succeeded', etc.
+  receivedAt   DateTime @default(now())
+  processedAt  DateTime?
+  payload      String         // Raw payload for debugging
+
+  @@index([provider, eventType])
+}

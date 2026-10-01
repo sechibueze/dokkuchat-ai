@@ -8,5 +8,5 @@ const adapter = new PrismaPg({
 
 export const db = new PrismaClient({
   adapter,
-  omit: { user: { password_hash: true } },
+  omit: { user: { password: true } },
 });

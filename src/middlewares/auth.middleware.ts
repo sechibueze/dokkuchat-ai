@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
-import { verifyToken } from '../utils/jwt.util';
+import { verifyAccessToken } from '../libs/jwt.lib';
 
 export const authenticate = (
   req: Request,
@@ -20,7 +20,7 @@ export const authenticate = (
     const token = authHeader.split(' ')[1];
 
     // Verify token and attach user payload to request
-    const decoded = verifyToken(token);
+    const decoded = verifyAccessToken(token as string);
     req.user = decoded;
 
     next();
@@ -33,7 +33,7 @@ export const authenticate = (
     }
 
     return res.status(401).json({
-      status: 'fail',
+      status: false,
       message: 'Invalid or corrupted token',
     });
   }
