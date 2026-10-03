@@ -1,13 +1,5 @@
 import { Queue } from 'bullmq';
-import Redis from 'ioredis';
-
-// Shared Redis connection
-export const redisConnection = new Redis(
-  process.env.REDIS_URL || 'redis://localhost:6379',
-  {
-    maxRetriesPerRequest: null, // Required by BullMQ
-  },
-);
+import { redisConnection } from './connection.queue';
 
 // Name of the background queue
 export const USER_QUEUE_NAME = 'user-background-tasks';

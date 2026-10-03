@@ -7,7 +7,6 @@ import { routes } from './routes';
 import { errorHandler } from './middlewares/error.middleware';
 import { registerUserListeners } from './listeners/user.listener.js';
 import { verifyWebhookSignature } from './middlewares/verify-webhook.middleware';
-
 const app = express();
 
 app.use(helmet()); // Security headers

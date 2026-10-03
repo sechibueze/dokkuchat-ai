@@ -8,6 +8,7 @@ const JWT_EXPIRES_IN = projectConfig.jwtExpiresIn;
 export interface JwtPayload {
   sub: string;
   tier: string;
+  role: string;
   type: 'access' | 'refresh';
 }
 
