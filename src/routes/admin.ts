@@ -1,17 +1,18 @@
 import { Router } from 'express';
-import { authenticate } from '../middleware/auth';
-import { requirePermission } from '../middleware/authorize';
-import { prisma } from '../lib/prisma';
-import { appEvents } from '../lib/events';
-import { NotFoundError } from '../lib/errors';
-
+import { db } from '../config/database';
+import { requirePermission } from '../middlewares/authorize.middleware';
+import * as userRepository from '../repositories/user.repository';
+import { authenticate } from '../middlewares/auth.middleware';
+import { appEvents } from '../libs/event.lib';
+import { NotFoundError } from '../libs/errors.lib';
 const router = Router();
+
 router.use(authenticate);
 router.use(requirePermission('roles:manage'));
 
 // List all roles with their permissions
 router.get('/roles', async (req, res) => {
-  const roles = await prisma.role.findMany({
+  const roles = await db.role.findMany({
     include: {
       permissions: { include: { permission: true } },
       _count: { select: { users: true } },
@@ -19,7 +20,7 @@ router.get('/roles', async (req, res) => {
   });
 
   res.json({
-    success: true,
+    status: true,
     data: roles.map((role) => ({
       id: role.id,
       name: role.name,
@@ -35,21 +36,21 @@ router.get('/roles', async (req, res) => {
 router.post('/users/:userId/roles', async (req, res, next) => {
   try {
     const { userId } = req.params;
-    const { roleName } = req.body;
+    const { role_name: roleName } = req.body;
 
-    const user = await prisma.user.findUnique({ where: { id: userId } });
+    const user = await userRepository.getUserById(userId);
     if (!user) throw new NotFoundError('User not found');
 
-    const role = await prisma.role.findUnique({ where: { name: roleName } });
+    const role = await db.role.findUnique({ where: { name: roleName } });
     if (!role) throw new NotFoundError(`Role '${roleName}' not found`);
 
-    await prisma.userRole.upsert({
+    await db.userRole.upsert({
       where: { userId_roleId: { userId, roleId: role.id } },
       update: {},
       create: {
         userId,
         roleId: role.id,
-        assignedBy: req.user!.id,
+        assignedBy: req.user!.sub,
       },
     });
 
@@ -57,7 +58,7 @@ router.post('/users/:userId/roles', async (req, res, next) => {
     appEvents.emit('admin:role-assigned', {
       targetUserId: userId,
       roleName,
-      assignedBy: req.user!.id,
+      assignedBy: req.user!.sub,
     });
 
     res.json({
@@ -74,23 +75,23 @@ router.delete('/users/:userId/roles/:roleName', async (req, res, next) => {
   try {
     const { userId, roleName } = req.params;
 
-    const role = await prisma.role.findUnique({
+    const role = await db.role.findUnique({
       where: { name: roleName },
     });
     if (!role) throw new NotFoundError('Role not found');
 
-    await prisma.userRole.deleteMany({
+    await db.userRole.deleteMany({
       where: { userId, roleId: role.id },
     });
 
     appEvents.emit('admin:role-revoked', {
       targetUserId: userId,
       roleName,
-      revokedBy: req.user!.id,
+      revokedBy: req.user!.sub,
     });
 
     res.json({
-      success: true,
+      status: true,
       data: { message: `Role '${roleName}' revoked` },
     });
   } catch (error) {

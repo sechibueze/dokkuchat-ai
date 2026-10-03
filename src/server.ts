@@ -2,9 +2,11 @@ import app from './app';
 import { projectConfig } from './config/env';
 import { logger } from './config/logger';
 import { db } from './config/database';
+import { setupWorkers } from './workers';
 
 async function startServer() {
   try {
+    setupWorkers();
     await db.$connect();
 
     logger.info('Database connected');
