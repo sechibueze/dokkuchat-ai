@@ -5,6 +5,7 @@ import * as userRepository from '../repositories/user.repository';
 import { authenticate } from '../middlewares/auth.middleware';
 import { appEvents } from '../libs/event.lib';
 import { NotFoundError } from '../libs/errors.lib';
+import { ADMIN_EVENTS } from '../events/admin.event';
 const router = Router();
 
 router.use(authenticate);
@@ -55,8 +56,8 @@ router.post('/users/:userId/roles', async (req, res, next) => {
     });
 
     // Audit event
-    appEvents.emit('admin:role-assigned', {
-      targetUserId: userId,
+    appEvents.emit(ADMIN_EVENTS.ROLE_ASSIGNED, {
+      userId: userId,
       roleName,
       assignedBy: req.user!.sub,
     });
@@ -84,8 +85,8 @@ router.delete('/users/:userId/roles/:roleName', async (req, res, next) => {
       where: { userId, roleId: role.id },
     });
 
-    appEvents.emit('admin:role-revoked', {
-      targetUserId: userId,
+    appEvents.emit(ADMIN_EVENTS.ROLE_REVOKED, {
+      userId: userId,
       roleName,
       revokedBy: req.user!.sub,
     });

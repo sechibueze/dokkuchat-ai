@@ -2,11 +2,23 @@ import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
 import { requirePermission } from '../middleware/authorize';
 import { validate } from '../middleware/validate';
+import {
+  conditionalGet,
+  setCacheControl,
+} from '../middlewares/etag.middleware';
 
 const router = Router();
 router.use(authenticate);
 
 // Anyone with documents:read can list documents
+router.get(
+  '/:id',
+  conditionalGet(),
+  setCacheControl('public, max-age=60'),
+  requirePermission('documents:read'),
+  validate(listDocumentsSchema),
+  listDocuments,
+);
 router.get(
   '/',
   requirePermission('documents:read'),

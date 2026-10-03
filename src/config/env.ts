@@ -40,6 +40,8 @@ export const projectConfig = {
   port: process.env.PORT ?? 5000,
   databaseUrl: process.env.DATABASE_URL,
   REDIS_URL: process.env.REDIS_URL,
+  REDIS_PORT: process.env.REDIS_PORT,
+  FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:3001',
   jwtSecret: process.env.JWT_SECRET || 'fallback_secret_change_in_prod',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '15m',
   jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || 'fallback',

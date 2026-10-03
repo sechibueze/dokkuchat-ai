@@ -5,12 +5,50 @@ import helmet from 'helmet';
 import { logger } from './config/logger';
 import { routes } from './routes';
 import { errorHandler } from './middlewares/error.middleware';
-import { registerUserListeners } from './listeners/user.listener.js';
 import { verifyWebhookSignature } from './middlewares/verify-webhook.middleware';
+import { setupEventListeners } from './listeners';
+import * as RateLimiter from './middlewares/rate-limiter.middleware';
+import { sanitizeInput } from './middlewares/sanitize.middleware';
 const app = express();
 
-app.use(helmet()); // Security headers
-app.use(cors()); // Cross-origin requests
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'none'"],
+        scriptSrc: ["'none'"],
+        styleSrc: ["'none'"],
+        imgSrc: ["'none'"],
+        connectSrc: ["'self'"],
+        // Allow Swagger UI
+        // scriptSrc: ["'self'", "'unsafe-inline'"],
+        // styleSrc: ["'self'", "'unsafe-inline'"],
+      },
+    },
+  }),
+);
+
+const allowedOrigins = [process.env.FRONTEND_URL || 'http://localhost:3001'];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, curl, server-to-server)
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`Origin ${origin} not allowed by CORS`));
+      }
+    },
+    credentials: true, // Allow cookies/auth headers
+    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'PUT'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    maxAge: 86400, // Cache preflight requests for 24 hours
+  }),
+);
+
 // app.use(
 //   '/webhooks',
 //   verifyWebhookSignature(secret, 'x-signature'),
@@ -23,8 +61,8 @@ app.use(cors()); // Cross-origin requests
 // );
 
 app.use(express.json());
-
-registerUserListeners();
+app.use(sanitizeInput);
+setupEventListeners();
 
 app.use((req, res, next) => {
   logger.info({
@@ -35,7 +73,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use('/api/v1', routes);
+app.use('/api/v1', RateLimiter.apiLimiter, routes);
 
 // 404 handler for unknown routes
 app.use((req, res) => {
