@@ -1,5 +1,5 @@
 import { userQueue } from '../queues/user.queue';
-import type { UserRegisteredJobData } from '../workers/user.worker';
+import type { UserRegisteredJobData } from '../queues/user.queue';
 import { logger } from '../config/logger';
 import { appEvents } from '../libs/event.lib';
 import { AUTH_EVENTS } from '../events/auth.event';

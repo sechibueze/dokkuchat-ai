@@ -1,9 +1,5 @@
 import jwt from 'jsonwebtoken';
-import { projectConfig } from '../config/env.js';
-
-const JWT_SECRET = projectConfig.jwtSecret;
-const JWT_REFRESH_SECRET = projectConfig.jwtRefreshSecret;
-const JWT_EXPIRES_IN = projectConfig.jwtExpiresIn;
+import { env } from '@/config/env';
 
 export interface JwtPayload {
   sub: string;
@@ -17,11 +13,11 @@ export interface JwtPayload {
  */
 export const generateAccessToken = (payload: JwtPayload): string => {
   return jwt.sign(payload, JWT_SECRET, {
-    expiresIn: JWT_EXPIRES_IN,
+    expiresIn: env.AUTH_ACCESS_TOKEN_TTL_SECONDS,
   });
 };
 export const generateRefreshToken = (payload: JwtPayload): string => {
-  return jwt.sign(payload, JWT_REFRESH_SECRET, {
+  return jwt.sign(payload, env.AUTH_REFRESH_TOKEN_SECRET, {
     expiresIn: '7d',
   });
 };
@@ -30,8 +26,8 @@ export const generateRefreshToken = (payload: JwtPayload): string => {
  * Verifies a JWT token and returns the decoded payload.
  */
 export const verifyAccessToken = (token: string): JwtPayload => {
-  return jwt.verify(token, JWT_SECRET) as JwtPayload;
+  return jwt.verify(token, env.AUTH_ACCESS_TOKEN_SECRET) as JwtPayload;
 };
 export const verifyRefreshToken = (token: string): JwtPayload => {
-  return jwt.verify(token, JWT_REFRESH_SECRET) as JwtPayload;
+  return jwt.verify(token, env.AUTH_REFRESH_TOKEN_SECRET) as JwtPayload;
 };

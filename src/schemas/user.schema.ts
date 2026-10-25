@@ -9,10 +9,7 @@ export const createUserSchema = z.object({
 export const updateUserSchema = z.object({
   name: z.string().min(1, 'Name must be at least 1 characters').optional(),
   email: z.string().email('Invalid email address format').optional(),
-  password: z
-    .string()
-    .min(8, 'Password must be at least 8 characters')
-    .optional(),
+  password: z.string().min(8, 'Password must be at least 8 characters').optional(),
 });
 
 // Infer TypeScript type from schema if needed

@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: docuchat
+      POSTGRES_PASSWORD: local_dev_password
+      POSTGRES_DB: docuchat
+    ports:
+      - '5433:5432'
+    volumes:
+      - docuchat_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U docuchat -d docuchat']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  docuchat_postgres:

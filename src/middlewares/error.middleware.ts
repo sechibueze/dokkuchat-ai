@@ -1,18 +1,11 @@
 import type { NextFunction, Request, Response } from 'express';
 import { AppError } from '../libs/errors.lib';
+import { logger } from '@/config/logger';
 
-export function errorHandler(
-  err: Error,
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) {
+export function errorHandler(err: Error, req: Request, res: Response, next: NextFunction) {
   // Operational error: we created this intentionally
   if (err instanceof AppError) {
-    console.warn(
-      `[${err.code}] ${err.message}`,
-      err.details ? { details: err.details } : '',
-    );
+    logger.warn(`[${err.code}] ${err.message}`, err.details ? { details: err.details } : '');
 
     return res.status(err.statusCode).json({
       status: false,
@@ -25,7 +18,7 @@ export function errorHandler(
   }
 
   // Programming error: this is a bug
-  console.error('Unhandled error:', err);
+  logger.error('Unhandled error:', err);
 
   return res.status(500).json({
     status: false,
