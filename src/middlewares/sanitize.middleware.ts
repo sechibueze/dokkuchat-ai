@@ -13,6 +13,7 @@ function sanitizeValue(value: any): any {
   if (Array.isArray(value)) {
     return value.map(sanitizeValue);
   }
+
   if (value && typeof value === 'object') {
     const clean: any = {};
     for (const key of Object.keys(value)) {
@@ -20,12 +21,29 @@ function sanitizeValue(value: any): any {
     }
     return clean;
   }
+
   return value;
 }
 
 export function sanitizeInput(req: Request, res: Response, next: NextFunction) {
-  if (req.body) req.body = sanitizeValue(req.body);
-  if (req.query) req.query = sanitizeValue(req.query);
-  if (req.params) req.params = sanitizeValue(req.params);
+  // Safe mutation for req.body
+  if (req.body) {
+    req.body = sanitizeValue(req.body);
+  }
+
+  // Mutate properties inside req.query individually rather than reassigning req.query
+  if (req.query && typeof req.query === 'object') {
+    for (const key of Object.keys(req.query)) {
+      req.query[key] = sanitizeValue(req.query[key]);
+    }
+  }
+
+  // Mutate properties inside req.params individually
+  if (req.params && typeof req.params === 'object') {
+    for (const key of Object.keys(req.params)) {
+      req.params[key] = sanitizeValue(req.params[key]);
+    }
+  }
+
   next();
 }

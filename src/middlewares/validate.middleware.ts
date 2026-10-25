@@ -1,33 +1,35 @@
 import type { Request, Response, NextFunction } from 'express';
-import { ZodType, ZodError } from 'zod';
+import { z, ZodError } from 'zod';
 
-export const validate = (schema: ZodType) => {
-  return async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      await schema.parseAsync(req.body);
-      next();
-    } catch (error) {
-      if (error instanceof ZodError) {
-        // Flatten error messages by field key
-        const formattedErrors = error.flatten().fieldErrors;
+export function validate(schema: z.ZodType) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const result = schema.safeParse({
+      body: req.body,
+      query: req.query,
+      params: req.params,
+    });
 
-        // Extracts the first error message for each field
-        const fieldErrors = Object.keys(formattedErrors).reduce(
-          (acc, key) => {
-            acc[key] = formattedErrors[key]?.[0] || 'Invalid value';
-            return acc;
-          },
-          {} as Record<string, string>,
-        );
+    if (!result.success) {
+      const errors = result.error.map((err: ZodError) => ({
+        field: err.path.slice(1).join('.'), // Remove 'body'/'query' prefix
+        message: err.message,
+      }));
 
-        return res.status(400).json({
-          status: false,
-          message: 'Validation failed',
-          errors: fieldErrors,
-        });
-      }
-
-      next(error);
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Request validation failed',
+          details: errors,
+        },
+      });
     }
+
+    // Replace req properties with validated (and transformed) data
+    req.body = result.data.body ?? req.body;
+    req.query = result.data.query ?? req.query;
+    req.params = result.data.params ?? req.params;
+
+    next();
   };
-};
+}

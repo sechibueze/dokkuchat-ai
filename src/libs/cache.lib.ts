@@ -1,7 +1,7 @@
 import IORedis from 'ioredis';
-import { projectConfig } from '../config/env';
+import { env } from '@/config/env';
 import crypto from 'crypto';
-export const cacheRedis = new IORedis(projectConfig.REDIS_URL, {
+export const cacheRedis = new IORedis(env.REDIS_URL, {
   keyPrefix: 'dokkuchat:', // Namespace all keys
 });
 
@@ -24,11 +24,7 @@ export async function cacheGet<T>(key: string): Promise<T | null> {
   }
 }
 
-export async function cacheSet(
-  key: string,
-  value: any,
-  ttlSeconds: number,
-): Promise<void> {
+export async function cacheSet(key: string, value: any, ttlSeconds: number): Promise<void> {
   await cacheRedis.set(key, JSON.stringify(value), 'EX', ttlSeconds);
 }
 
@@ -52,11 +48,7 @@ export async function cacheDelPattern(pattern: string): Promise<void> {
 
 export function hashKey(...parts: string[]): string {
   const data = parts.join(':');
-  return crypto
-    .createHash('sha256')
-    .update(data)
-    .digest('hex')
-    .substring(0, 16);
+  return crypto.createHash('sha256').update(data).digest('hex').substring(0, 16);
 }
 export async function cacheGetOrSet<T>(
   key: string,

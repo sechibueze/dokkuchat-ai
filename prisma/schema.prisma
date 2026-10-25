@@ -122,3 +122,24 @@ model WebhookEvent {
 
   @@index([provider, eventType])
 }
+
+model Chunk {
+  id         String   @id @default(uuid())
+  documentId String
+  index      Int
+  content    String
+  tokenCount Int
+  // Vector embedding — 1536 dimensions for text-embedding-3-small
+  embedding  Unsupported("vector(1536)")?
+  createdAt  DateTime @default(now())
+
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+}
+
+model Document {
+  // ... existing fields ...
+  deletedAt   DateTime?  // null = active, timestamp = soft-deleted
+  deletedBy   String?    // Who deleted it (for audit)
+}

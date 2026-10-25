@@ -1,7 +1,7 @@
-import { setupUserWorker } from './user.worker';
+import { setupUserWorker } from './user.queue';
 import { logger } from '../config/logger';
 
-export const setupWorkers = () => {
+export const setupQueueWorkers = () => {
   setupUserWorker();
 
   logger.info('[Workers] All BullMQ workers initialized successfully');

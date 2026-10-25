@@ -1,7 +1,6 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-
 import { logger } from './config/logger';
 import { routes } from './routes';
 import { errorHandler } from './middlewares/error.middleware';
@@ -9,6 +8,15 @@ import { verifyWebhookSignature } from './middlewares/verify-webhook.middleware'
 import { setupEventListeners } from './listeners';
 import * as RateLimiter from './middlewares/rate-limiter.middleware';
 import { sanitizeInput } from './middlewares/sanitize.middleware';
+import { requestLogger } from './middlewares/request-logger.middleware';
+import { metricsRegistry } from './libs/metrics.lib';
+import { metricsMiddleware } from './middlewares/metrics.middleware';
+import { setupQueueWorkers } from './queues';
+import swaggerUi from 'swagger-ui-express';
+import { swaggerSpec } from './config/swagger';
+import { env } from './config/env';
+import { correlationIdMiddleware } from './middlewares/correlation-id.middleware';
+
 const app = express();
 
 app.use(
@@ -28,8 +36,9 @@ app.use(
   }),
 );
 
-const allowedOrigins = [process.env.FRONTEND_URL || 'http://localhost:3001'];
-
+const allowedOrigins = env.CORS_ORIGINS.split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -59,11 +68,10 @@ app.use(
 //     },
 //   }),
 // );
-
-app.use(express.json());
+app.disable('x-powered-by');
+app.use(requestLogger);
+app.use(express.json({ limit: '1mb' }));
 app.use(sanitizeInput);
-setupEventListeners();
-
 app.use((req, res, next) => {
   logger.info({
     method: req.method,
@@ -73,8 +81,21 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use('/api/v1', RateLimiter.apiLimiter, routes);
+app.use(metricsMiddleware);
 
+// Metrics endpoint (no auth — Prometheus needs to scrape it)
+app.get('/metrics', async (req, res) => {
+  res.set('Content-Type', metricsRegistry.contentType);
+  res.send(await metricsRegistry.metrics());
+});
+// Serve Swagger UI
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+// Also serve the raw JSON spec
+app.get('/api-docs.json', (req, res) => {
+  res.json(swaggerSpec);
+});
+app.use('/api/v1', RateLimiter.apiLimiter, routes);
 // 404 handler for unknown routes
 app.use((req, res) => {
   res.status(404).json({

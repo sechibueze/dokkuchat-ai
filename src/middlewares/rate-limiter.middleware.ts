@@ -1,4 +1,4 @@
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import RedisStore from 'rate-limit-redis';
 import type { Request } from 'express';
 import { cacheRedis } from '../libs/cache.lib';
@@ -27,7 +27,7 @@ function createLimiter(options: {
     },
     keyGenerator:
       options.keyGenerator ||
-      ((req: Request) => (req as any).user?.sub || req.ip || 'anonymous'),
+      ((req: Request) => (req as any).user?.sub || ipKeyGenerator(req.ip ?? '') || 'anonymous'),
   });
 }
 
@@ -36,7 +36,7 @@ export const authLimiter = createLimiter({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 10,
   message: 'Too many auth attempts. Please try again later.',
-  keyGenerator: (req) => req.ip || 'anonymous',
+  keyGenerator: (req) => ipKeyGenerator(req.ip ?? '') || 'anonymous',
 });
 
 // General API: tier-based
