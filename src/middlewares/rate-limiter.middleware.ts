@@ -2,12 +2,23 @@ import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import RedisStore from 'rate-limit-redis';
 import type { Request } from 'express';
 import { cacheRedis } from '../libs/cache.lib';
+import { env } from '@/config/env';
+
+function createStore(prefix: string) {
+  if (!cacheRedis) return undefined;
+
+  return new RedisStore({
+    sendCommand: (command, ...args) => cacheRedis.call(command, ...args) as Promise<number>,
+    prefix,
+  });
+}
 
 // Helper to create limiters with Redis backing
 function createLimiter(options: {
   windowMs: number;
   max: number | ((req: Request) => number);
   message: string;
+  prefix: string;
   keyGenerator?: (req: Request) => string;
 }) {
   return rateLimit({
@@ -15,9 +26,7 @@ function createLimiter(options: {
     max: options.max,
     standardHeaders: true, // Send X-RateLimit-* headers
     legacyHeaders: false, // Don't send X-RateLimit-* (old format)
-    store: new RedisStore({
-      sendCommand: (...args: string[]) => (cacheRedis as any).call(...args),
-    }),
+    store: createStore(options.prefix),
     message: {
       success: false,
       error: {
@@ -33,14 +42,16 @@ function createLimiter(options: {
 
 // Auth endpoints: same for everyone, keyed by IP (user isn't authenticated yet)
 export const authLimiter = createLimiter({
+  prefix: 'rl_auth',
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10,
+  max: env.NODE_ENV === 'development' ? 50 : 10,
   message: 'Too many auth attempts. Please try again later.',
   keyGenerator: (req) => ipKeyGenerator(req.ip ?? '') || 'anonymous',
 });
 
 // General API: tier-based
 export const apiLimiter = createLimiter({
+  prefix: 'rl_api',
   windowMs: 15 * 60 * 1000,
   max: (req: Request) => {
     const tier = (req as any).user?.tier || 'free';
@@ -56,6 +67,7 @@ export const apiLimiter = createLimiter({
 
 // Document uploads: tier-based, tight limits
 export const uploadLimiter = createLimiter({
+  prefix: 'rl_upload',
   windowMs: 60 * 60 * 1000, // 1 hour
   max: (req: Request) => {
     const tier = (req as any).user?.tier || 'free';
@@ -71,6 +83,7 @@ export const uploadLimiter = createLimiter({
 
 // AI/chat queries: tier-based, per-minute (expensive operations)
 export const chatLimiter = createLimiter({
+  prefix: 'rl_chat',
   windowMs: 60 * 1000, // 1 minute
   max: (req: Request) => {
     const tier = (req as any).user?.tier || 'free';

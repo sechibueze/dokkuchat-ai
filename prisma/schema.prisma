@@ -28,33 +28,30 @@ enum UserStatus {
   active
   suspended
 }
-enum DocumentStatus {
-  PROCESSING
-  READY
-  FAILED
-}
 
 model User {
-  id            String     @id @default(uuid())
-  name          String
-  email         String     @unique
-  password      String
-  status        UserStatus @default(pending)
-  tier          Tiers      @default(free)
-  role          UserType   @default(user)
-  roles         UserRole[]
-  deletedAt     DateTime?
-  updatedAt    DateTime  @updatedAt
+  id           String        @id @default(uuid()) @db.Uuid
+  name         String
+  email        String        @unique
+  password     String
+  status       UserStatus    @default(pending)
+  tier         Tiers         @default(free)
+  role         UserType      @default(user)
+  roles        UserRole[]
+  deletedAt    DateTime?
+  updatedAt    DateTime      @updatedAt
   createdAt    DateTime      @default(now())
   accessTokens AccessToken[]
+
+  documents Document[]
 
   @@index([email])
   @@index([id])
 }
 
 model AccessToken {
-  id        String   @id @default(uuid())
-  userId    String
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
   token     String   @unique // SHA-256 hash of the actual token
   expiresAt DateTime
   createdAt DateTime @default(now())
@@ -66,7 +63,7 @@ model AccessToken {
 }
 
 model Role {
-  id          String   @id @default(uuid())
+  id          String   @id @default(uuid()) @db.Uuid
   name        String   @unique // 'admin', 'member', 'viewer'
   description String?
   isDefault   Boolean  @default(false) // New users get this role
@@ -78,7 +75,7 @@ model Role {
 }
 
 model Permission {
-  id          String   @id @default(uuid())
+  id          String   @id @default(uuid()) @db.Uuid
   name        String   @unique // 'documents:create'
   description String?
   resource    String // 'documents'
@@ -91,8 +88,8 @@ model Permission {
 }
 
 model UserRole {
-  userId     String
-  roleId     String
+  userId     String   @db.Uuid
+  roleId     String   @db.Uuid
   assignedAt DateTime @default(now())
   assignedBy String? // Who assigned this role (for audit)
 
@@ -103,8 +100,8 @@ model UserRole {
 }
 
 model RolePermission {
-  roleId       String
-  permissionId String
+  roleId       String @db.Uuid
+  permissionId String @db.Uuid
 
   role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
   permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
@@ -113,33 +110,124 @@ model RolePermission {
 }
 
 model WebhookEvent {
-  id           String   @id  // The provider's event ID
-  provider     String         // 'stripe', 'github', etc.
-  eventType    String         // 'payment.succeeded', etc.
-  receivedAt   DateTime @default(now())
-  processedAt  DateTime?
-  payload      String         // Raw payload for debugging
+  id          String    @id @db.Uuid // The provider's event ID
+  provider    String // 'stripe', 'github', etc.
+  eventType   String // 'payment.succeeded', etc.
+  receivedAt  DateTime  @default(now())
+  processedAt DateTime?
+  payload     String // Raw payload for debugging
 
   @@index([provider, eventType])
 }
 
 model Chunk {
-  id         String   @id @default(uuid())
-  documentId String
+  id         String                       @id @default(uuid()) @db.Uuid
+  documentId String                       @db.Uuid
   index      Int
   content    String
   tokenCount Int
   // Vector embedding — 1536 dimensions for text-embedding-3-small
   embedding  Unsupported("vector(1536)")?
-  createdAt  DateTime @default(now())
+  createdAt  DateTime                     @default(now())
 
-  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   @@index([documentId])
 }
 
+enum DocumentStatus {
+  UPLOADED
+  QUEUED
+  PROCESSING
+  READY
+  FAILED
+  DELETED
+}
+
 model Document {
-  // ... existing fields ...
-  deletedAt   DateTime?  // null = active, timestamp = soft-deleted
-  deletedBy   String?    // Who deleted it (for audit)
+  id             String         @id @default(uuid()) @db.Uuid
+  organizationId String?        @db.Uuid
+  ownerId        String         @db.Uuid
+  title          String         @db.VarChar(255)
+  originalName   String         @db.VarChar(255)
+  mimeType       String         @db.VarChar(150)
+  sizeBytes      BigInt
+  checksum       String         @db.VarChar(64)
+  storageKey     String         @unique @db.VarChar(500)
+  status         DocumentStatus @default(UPLOADED)
+  errorCode      String?        @db.VarChar(100)
+  pageCount      Int?
+  chunkCount     Int            @default(0)
+  deletedAt      DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  // organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  owner     User    @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  chunks    Chunk[]
+  deletedBy String? // Who deleted it (for audit)
+
+  @@index([status, createdAt])
+  @@index([ownerId, createdAt])
+}
+
+model AIUsage {
+  id           String   @id @default(uuid()) @db.Uuid
+  // organizationId  String   @db.Uuid
+  userId       String?  @db.Uuid
+  operation    String   @db.VarChar(50)
+  provider     String   @db.VarChar(50)
+  model        String   @db.VarChar(100)
+  inputTokens  Int      @default(0)
+  outputTokens Int      @default(0)
+  costMicros   BigInt   @default(0)
+  requestId    String?  @db.VarChar(128)
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([userId, createdAt])
+}
+
+model Conversation {
+  id        String    @id @default(uuid()) @db.Uuid
+  // organizationId String   @db.Uuid
+  userId    String    @db.Uuid
+  title     String?   @db.VarChar(255)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  messages ConversationMessage[]
+
+  @@index([userId, updatedAt])
+}
+
+model ConversationMessage {
+  id             String   @id @default(uuid()) @db.Uuid
+  conversationId String   @db.Uuid
+  role           String   @db.VarChar(20)
+  content        String   @db.Text
+  inputTokens    Int      @default(0)
+  outputTokens   Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Restrict)
+
+  citations MessageCitation[]
+
+  @@index([conversationId, createdAt])
+}
+
+model MessageCitation {
+  id            String  @id @default(uuid()) @db.Uuid
+  messageId     String  @db.Uuid
+  documentId    String  @db.Uuid
+  chunkId       String  @db.Uuid
+  citationIndex Int
+  quotedText    String? @db.VarChar(1000)
+
+  message ConversationMessage @relation(fields: [messageId], references: [id], onDelete: Restrict)
+
+  @@unique([messageId, citationIndex])
+  @@index([documentId, chunkId])
 }

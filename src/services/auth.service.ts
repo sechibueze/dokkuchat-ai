@@ -34,10 +34,7 @@ export const loginUser = async ({ email, password }: LoginUserInput) => {
   });
 
   // Store the refresh token hash
-  const refreshTokenHash = crypto
-    .createHash('sha256')
-    .update(refreshToken)
-    .digest('hex');
+  const refreshTokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
 
   await userRepository.storeRefreshToken(user.id, refreshTokenHash);
   const { password: _, ...userWithoutPassword } = user;
@@ -69,10 +66,7 @@ export async function generateRefreshToken(rawRefreshToken: string) {
   }
 
   // Check if this token exists in the database (not revoked)
-  const refreshTokenHash = crypto
-    .createHash('sha256')
-    .update(rawRefreshToken)
-    .digest('hex');
+  const refreshTokenHash = crypto.createHash('sha256').update(rawRefreshToken).digest('hex');
 
   const stored = await userRepository.getRefreshTokenByHash(refreshTokenHash);
 
@@ -99,10 +93,7 @@ export async function generateRefreshToken(rawRefreshToken: string) {
     tier: user.tier,
     type: 'refresh',
   });
-  const newHash = crypto
-    .createHash('sha256')
-    .update(newRefreshToken)
-    .digest('hex');
+  const newHash = crypto.createHash('sha256').update(newRefreshToken).digest('hex');
 
   await userRepository.storeRefreshToken(user.id, newHash);
 

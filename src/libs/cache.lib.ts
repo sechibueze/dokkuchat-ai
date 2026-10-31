@@ -3,6 +3,12 @@ import { env } from '@/config/env';
 import crypto from 'crypto';
 export const cacheRedis = new IORedis(env.REDIS_URL, {
   keyPrefix: 'dokkuchat:', // Namespace all keys
+  lazyConnect: true,
+  maxRetriesPerRequest: 1,
+  enableReadyCheck: true,
+  retryStrategy(times: number) {
+    return Math.min(times * 250, 3000);
+  },
 });
 
 // TTL constants in seconds
@@ -55,11 +61,11 @@ export async function cacheGetOrSet<T>(
   ttlSeconds: number,
   fetchFn: () => Promise<T>,
 ): Promise<T> {
-  // 1. Try cache
+  //  Try cache
   const cached = await cacheGet<T>(key);
   if (cached !== null) return cached;
 
-  // 2. Try to acquire lock
+  // Try to acquire lock
   const lockKey = `lock:${key}`;
   const acquired = await cacheRedis.set(
     lockKey,

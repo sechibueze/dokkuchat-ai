@@ -1,159 +1,176 @@
-import { Worker, Job } from 'bullmq';
-import { redisConnection } from './connection';
-import { prisma } from '../lib/prisma';
-import { logger } from '../lib/logger';
-import { appEvents } from '../lib/events';
-import { extractText, detectFormat } from '../lib/documentExtractor';
-import { chunkDocument } from '../lib/chunker';
-import {
-  generateEmbeddingsBatchCached,
-  storeChunkEmbeddingsBatch,
-} from '../services/embedding.service';
+import { Worker, Job, Queue } from 'bullmq';
+import { redisConnection } from '@/queues/connection.queue';
+import { logger } from '@/config/logger';
+import { appEvents } from '@/libs/event.lib';
+import { db } from '@/config/database';
+import { DocumentJob } from '@/schemas/document.schema';
+import { BasicTextExtractor } from '@/modules/documents/extraction/text-extraction';
+import { createDocumentStorage } from '@/modules/documents/storage/storage.factory';
+import { chunkDocument } from '@/modules/documents/chunking/recursive-character-splitter';
+import { createAIProviders } from '@/modules/ai/ai.container';
+import { storeChunkEmbeddingsBatch } from '@/modules/ai/services/embedding.service';
 
-const worker = new Worker(
-  'document-processing',
-  async (job: Job) => {
-    const { documentId, userId, correlationId } = job.data;
-    const startTime = Date.now();
+export const DOCUMENT_QUEUE_NAME = 'doc-ingestion';
+export const documentQueue = new Queue<DocumentJob>(DOCUMENT_QUEUE_NAME, {
+  connection: redisConnection,
+  defaultJobOptions: {
+    attempts: 3, // Retry failed jobs up to 3 times
+    backoff: {
+      type: 'exponential',
+      delay: 5000, // 5s, 10s, 20s retries
+    },
+    removeOnComplete: true, // Clean up completed jobs
+    removeOnFail: 100, // Keep last 100 failed jobs for debugging
+  },
+});
 
-    logger.info('Document processing started', {
-      correlationId,
-      documentId,
-      userId,
-    });
+export async function enqueueDocumentIngestion(payload: DocumentJob): Promise<void> {
+  await documentQueue.add(DOCUMENT_QUEUE_NAME, payload);
+}
+const storage = createDocumentStorage();
+export const setupDocumentWorker = () => {
+  const worker = new Worker<DocumentJob>(
+    DOCUMENT_QUEUE_NAME,
+    async (job: Job) => {
+      const { documentId, ownerId, correlationId } = job.data;
+      const startTime = Date.now();
 
-    await prisma.document.update({
-      where: { id: documentId },
-      data: { status: 'processing' },
-    });
-
-    try {
-      // Step 1: Fetch document
-      const doc = await prisma.document.findUniqueOrThrow({
-        where: { id: documentId },
-      });
-      await job.updateProgress(5);
-
-      // Step 2: Extract text
-      const format = detectFormat(doc.filename);
-      const { text, pageCount } = await extractText(doc.content, format);
-      await job.updateProgress(15);
-
-      logger.info('Text extracted', {
+      logger.info('Document processing started', {
         correlationId,
         documentId,
-        format,
-        textLength: text.length,
-        pageCount,
+        ownerId,
       });
 
-      // Step 3: Chunk the text
-      const chunks = chunkDocument(text, {
-        maxTokens: 500,
-        overlapTokens: 50,
-        minChunkTokens: 50,
-      });
-      await job.updateProgress(30);
-
-      logger.info('Document chunked', {
-        correlationId,
-        documentId,
-        chunkCount: chunks.length,
-        avgTokens: Math.round(
-          chunks.reduce((sum, c) => sum + c.tokenEstimate, 0) / chunks.length,
-        ),
-      });
-
-      // Step 4: Store chunks in database
-      await prisma.$transaction(async (tx) => {
-        await tx.chunk.deleteMany({ where: { documentId } });
-        await tx.chunk.createMany({
-          data: chunks.map((chunk) => ({
-            documentId,
-            index: chunk.index,
-            content: chunk.text,
-            tokenCount: chunk.tokenEstimate,
-          })),
+      try {
+        // Step 1: Fetch document
+        const doc = await db.document.findUniqueOrThrow({
+          where: { id: documentId, status: { in: ['QUEUED', 'FAILED', 'UPLOADED'] } },
         });
-      });
-      await job.updateProgress(50);
+        await job.updateProgress(5);
 
-      // Step 5: Generate embeddings (the expensive step)
-      const chunkTexts = chunks.map((c) => c.text);
-      const embeddings = await generateEmbeddingsBatchCached(chunkTexts);
-      await job.updateProgress(85);
+        // Step 2: Extract text
+        const textExtractor = new BasicTextExtractor();
+        const fileBuffer = await storage.get(doc.storageKey);
+        const { text } = await textExtractor.extract(fileBuffer, doc.mimeType);
+        await job.updateProgress(15);
 
-      // Step 6: Store embeddings
-      const storedChunks = await prisma.chunk.findMany({
-        where: { documentId },
-        orderBy: { index: 'asc' },
-        select: { id: true },
-      });
+        logger.info('Text extracted', {
+          correlationId,
+          documentId,
+          textLength: text.length,
+          documentContent: text.substring(0, 50),
+        });
 
-      await storeChunkEmbeddingsBatch(
-        storedChunks.map((c, i) => ({
-          id: c.id,
-          embedding: embeddings[i],
-        })),
-      );
-      await job.updateProgress(95);
+        // Step 3: Chunk the text
+        const chunks = chunkDocument(text, {
+          maxTokens: 500,
+          overlapTokens: 20,
+          minChunkTokens: 20,
+        });
 
-      // Step 7: Mark complete
-      await prisma.document.update({
-        where: { id: documentId },
-        data: {
-          status: 'ready',
+        await job.updateProgress(30);
+
+        logger.info('Document chunked', {
+          correlationId,
+          documentId,
           chunkCount: chunks.length,
-        },
-      });
-      await job.updateProgress(100);
+          avgTokens: Math.round(
+            chunks.reduce((sum, c) => sum + c.tokenEstimate, 0) / chunks.length,
+          ),
+        });
 
-      const duration = Date.now() - startTime;
+        // Step 4: Store chunks in database
+        await db.$transaction(async (tx) => {
+          await tx.chunk.deleteMany({ where: { documentId } });
+          await tx.chunk.createMany({
+            data: chunks.map((chunk) => ({
+              documentId,
+              index: chunk.index,
+              content: chunk.text,
+              tokenCount: chunk.tokenEstimate,
+            })),
+          });
+        });
+        await job.updateProgress(50);
 
-      // Emit completion event with metrics
-      appEvents.emit('doc:processed', {
-        documentId,
-        userId,
-        correlationId,
-        chunkCount: chunks.length,
-        durationMs: duration,
-        format,
-        pageCount,
-      });
+        // Step 5: Generate embeddings
+        const chunkTexts = chunks.map((c) => c.text);
+        const ai = createAIProviders();
+        const embeddings = await ai.embedding.embedMany(chunkTexts);
+        await job.updateProgress(85);
 
-      logger.info('Document processing complete', {
-        correlationId,
-        documentId,
-        chunkCount: chunks.length,
-        durationMs: duration,
-      });
+        console.log('embeddings', embeddings[0]);
 
-      return {
-        success: true,
-        chunks: chunks.length,
-        durationMs: duration,
-      };
-    } catch (error) {
-      if (job.attemptsMade >= (job.opts.attempts ?? 3) - 1) {
-        await prisma.document.update({
+        // Step 6: Store embeddings
+        const documentChunks = await db.chunk.findMany({
+          where: { documentId },
+          orderBy: { index: 'asc' },
+          select: { id: true },
+        });
+
+        await storeChunkEmbeddingsBatch(
+          documentChunks.map((chunk, i) => ({
+            id: chunk.id,
+            embedding: embeddings[i].vector,
+          })),
+        );
+        await job.updateProgress(95);
+
+        // Step 7: Mark complete
+        await db.document.update({
           where: { id: documentId },
           data: {
-            status: 'failed',
-            error: (error as Error).message,
+            status: 'READY',
+            chunkCount: chunks.length,
           },
         });
+        await job.updateProgress(100);
+
+        const duration = Date.now() - startTime;
+
+        // Emit completion event with metrics
+        appEvents.emit('doc:processed', {
+          documentId,
+          ownerId,
+          correlationId,
+          chunkCount: documentChunks.length,
+          durationMs: duration,
+        });
+
+        logger.info('Document processing complete', {
+          correlationId,
+          documentId,
+          durationMs: duration,
+        });
+
+        return {
+          success: true,
+          durationMs: duration,
+        };
+      } catch (error) {
+        if (job.attemptsMade >= (job.opts.attempts ?? 3) - 1) {
+          await db.document.update({
+            where: { id: documentId },
+            data: {
+              status: 'FAILED',
+              error: (error as Error).message,
+            },
+          });
+        }
+        logger.error('Document processing failed', {
+          correlationId,
+          documentId,
+          error: (error as Error).message,
+          attempt: job.attemptsMade + 1,
+        });
+        throw error;
       }
-      logger.error('Document processing failed', {
-        correlationId,
-        documentId,
-        error: (error as Error).message,
-        attempt: job.attemptsMade + 1,
-      });
-      throw error;
-    }
-  },
-  {
-    connection: redisConnection,
-    concurrency: 3,
-  },
-);
+    },
+    {
+      connection: redisConnection,
+      concurrency: 3,
+    },
+  );
+
+  return worker;
+};

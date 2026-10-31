@@ -4,7 +4,7 @@ import { env } from '@/config/env';
 export interface JwtPayload {
   sub: string;
   tier: string;
-  role: string;
+  role?: string;
   type: 'access' | 'refresh';
 }
 
@@ -12,7 +12,7 @@ export interface JwtPayload {
  * Signs a new JWT access token containing essential user claims.
  */
 export const generateAccessToken = (payload: JwtPayload): string => {
-  return jwt.sign(payload, JWT_SECRET, {
+  return jwt.sign(payload, env.AUTH_ACCESS_TOKEN_SECRET, {
     expiresIn: env.AUTH_ACCESS_TOKEN_TTL_SECONDS,
   });
 };

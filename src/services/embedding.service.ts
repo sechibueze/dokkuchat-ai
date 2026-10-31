@@ -44,9 +44,7 @@ export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
     });
 
     // Sort by index to maintain order
-    const sorted = response.data.data.sort(
-      (a: any, b: any) => a.index - b.index,
-    );
+    const sorted = response.data.data.sort((a: any, b: any) => a.index - b.index);
 
     for (const item of sorted) {
       allEmbeddings.push(item.embedding);
@@ -63,10 +61,7 @@ export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
   return allEmbeddings;
 }
 
-export async function storeChunkEmbedding(
-  chunkId: string,
-  embedding: number[],
-): Promise<void> {
+export async function storeChunkEmbedding(chunkId: string, embedding: number[]): Promise<void> {
   const vectorStr = `[${embedding.join(',')}]`;
 
   await prisma.$executeRaw`
@@ -76,21 +71,21 @@ export async function storeChunkEmbedding(
   `;
 }
 
-export async function storeChunkEmbeddingsBatch(
-  chunks: { id: string; embedding: number[] }[],
-): Promise<void> {
-  // Use a transaction for atomicity
-  await prisma.$transaction(
-    chunks.map((chunk) => {
-      const vectorStr = `[${chunk.embedding.join(',')}]`;
-      return prisma.$executeRaw`
-        UPDATE "Chunk"
-        SET embedding = ${vectorStr}::vector
-        WHERE id = ${chunk.id}
-      `;
-    }),
-  );
-}
+// export async function storeChunkEmbeddingsBatch(
+//   chunks: { id: string; embedding: number[] }[],
+// ): Promise<void> {
+//   // Use a transaction for atomicity
+//   await prisma.$transaction(
+//     chunks.map((chunk) => {
+//       const vectorStr = `[${chunk.embedding.join(',')}]`;
+//       return prisma.$executeRaw`
+//         UPDATE "Chunk"
+//         SET embedding = ${vectorStr}::vector
+//         WHERE id = ${chunk.id}
+//       `;
+//     }),
+//   );
+// }
 function contentHash(text: string): string {
   return crypto.createHash('sha256').update(text).digest('hex');
 }
@@ -126,9 +121,7 @@ export async function generateEmbeddingCached(text: string): Promise<number[]> {
   return embedding;
 }
 
-export async function generateEmbeddingsBatchCached(
-  texts: string[],
-): Promise<number[][]> {
+export async function generateEmbeddingsBatchCached(texts: string[]): Promise<number[][]> {
   const results: (number[] | null)[] = new Array(texts.length).fill(null);
   const uncached: { index: number; text: string }[] = [];
 

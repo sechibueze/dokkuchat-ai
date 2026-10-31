@@ -3,18 +3,119 @@ services:
     image: pgvector/pgvector:pg16
     restart: unless-stopped
     environment:
-      POSTGRES_USER: docuchat
-      POSTGRES_PASSWORD: local_dev_password
-      POSTGRES_DB: docuchat
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
     ports:
-      - '5433:5432'
+      - '127.0.0.1:${POSTGRES_HOST_PORT:-5430}:5432'
     volumes:
       - docuchat_postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U docuchat -d docuchat']
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
       interval: 5s
       timeout: 5s
       retries: 10
+  # postgres:
+  #   image: pgvector/pgvector:pg16
+  #   container_name: docuchat_postgres
+  #   restart: unless-stopped
+  #   environment:
+  #     POSTGRES_USER: postgres
+  #     POSTGRES_PASSWORD: postgres
+  #     POSTGRES_DB: docuchat
+  #   ports:
+  #     - '5430:5432'
+  #   volumes:
+  #     - docuchat_postgres:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ['CMD-SHELL', 'pg_isready -U postgres -d docuchat']
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 10
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --appendonly
+      - 'yes'
+      - --requirepass
+      - ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}
+    ports:
+      - '127.0.0.1:${REDIS_HOST_PORT:-6379}:6379'
+    volumes:
+      - docuchat_redis_data:/data
+    healthcheck:
+      test: ['CMD-SHELL', 'redis-cli -a "$$REDIS_PASSWORD" --no-auth-warning ping | grep PONG']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+  # redis:
+  #   image: redis:7-alpine
+  #   command: ['redis-server', '--appendonly', 'yes']
+  #   ports:
+  #     - '127.0.0.1:6379:6379'
+  #   volumes:
+  #     - docuchat_redis_data:/data
+  #   healthcheck:
+  #     test: ['CMD', 'redis-cli', 'ping']
+  #     interval: 5s
+  #     timeout: 3s
+  #     retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    container_name: dokkuchat-backend
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 8080
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+    ports:
+      - '${APP_PORT:-8080}:8080'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  prometheus:
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+    ports:
+      - '127.0.0.1:9090:9090'
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - docuchat_prometheus_data:/prometheus
+    depends_on:
+      - app
+
+  grafana:
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:?set GRAFANA_ADMIN_USER in .env}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in .env}
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+    ports:
+      - '127.0.0.1:${GRAFANA_PORT:-3001}:8080'
+    volumes:
+      - docuchat_grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
 
 volumes:
   docuchat_postgres:
+  docuchat_redis_data:
+  docuchat_prometheus_data:
+  docuchat_grafana_data:

@@ -44,8 +44,8 @@ DROP TYPE "UserRole";
 
 -- CreateTable
 CREATE TABLE "AccessToken" (
-    "id" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
+    "id" UUID NOT NULL,
+    "userId" UUID NOT NULL,
     "token" TEXT NOT NULL,
     "expiresAt" TIMESTAMP(3) NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -55,7 +55,7 @@ CREATE TABLE "AccessToken" (
 
 -- CreateTable
 CREATE TABLE "Role" (
-    "id" TEXT NOT NULL,
+    "id" UUID NOT NULL,
     "name" TEXT NOT NULL,
     "description" TEXT,
     "isDefault" BOOLEAN NOT NULL DEFAULT false,
@@ -67,7 +67,7 @@ CREATE TABLE "Role" (
 
 -- CreateTable
 CREATE TABLE "Permission" (
-    "id" TEXT NOT NULL,
+    "id" UUID NOT NULL,
     "name" TEXT NOT NULL,
     "description" TEXT,
     "resource" TEXT NOT NULL,
@@ -79,8 +79,8 @@ CREATE TABLE "Permission" (
 
 -- CreateTable
 CREATE TABLE "UserRole" (
-    "userId" TEXT NOT NULL,
-    "roleId" TEXT NOT NULL,
+    "userId" UUID NOT NULL,
+    "roleId" UUID NOT NULL,
     "assignedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "assignedBy" TEXT,
 
@@ -89,8 +89,8 @@ CREATE TABLE "UserRole" (
 
 -- CreateTable
 CREATE TABLE "RolePermission" (
-    "roleId" TEXT NOT NULL,
-    "permissionId" TEXT NOT NULL,
+    "roleId" UUID NOT NULL,
+    "permissionId" UUID NOT NULL,
 
     CONSTRAINT "RolePermission_pkey" PRIMARY KEY ("roleId","permissionId")
 );

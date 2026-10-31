@@ -1,16 +1,11 @@
 import * as UserService from '../services/user.service';
 import * as AuthService from '../services/auth.service';
 import { logger } from '../config/logger';
-import app from '../app';
 import { appEvents } from '../libs/event.lib';
 import { AUTH_EVENTS } from '../events/auth.event';
 import type { Request, Response, NextFunction } from 'express';
 
-export const login = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
+export const login = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { email, password } = req.body;
     const data = await AuthService.loginUser({ email, password });

@@ -1,11 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { verifyAccessToken } from '../libs/jwt.lib';
 
-export const authenticate = (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
+export const authenticate = (req: Request, res: Response, next: NextFunction) => {
   try {
     const authHeader = req.headers.authorization;
 

@@ -134,10 +134,6 @@ Contributions should follow the established project conventions.
 
 Do not commit secrets, private documents, generated credentials, or production data.
 
-## License
-
-**License: TBD.** A license must be selected before the project is distributed publicly. Until then, do not assume that the source is available for unrestricted reuse.
-
 ## Support
 
 Report bugs and request features through the repository's issue tracker once it is configured. Security vulnerabilities should be reported privately through an established security contact rather than disclosed publicly before remediation.

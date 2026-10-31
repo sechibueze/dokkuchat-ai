@@ -15,7 +15,6 @@ import { setupQueueWorkers } from './queues';
 import swaggerUi from 'swagger-ui-express';
 import { swaggerSpec } from './config/swagger';
 import { env } from './config/env';
-import { correlationIdMiddleware } from './middlewares/correlation-id.middleware';
 
 const app = express();
 
@@ -29,8 +28,8 @@ app.use(
         imgSrc: ["'none'"],
         connectSrc: ["'self'"],
         // Allow Swagger UI
-        // scriptSrc: ["'self'", "'unsafe-inline'"],
-        // styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
       },
     },
   }),

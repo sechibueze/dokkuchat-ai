@@ -1,4 +1,4 @@
-import pdfParse from 'pdf-parse';
+import { PDFParse } from 'pdf-parse';
 
 export type SupportedFormat = 'text' | 'pdf' | 'markdown';
 
@@ -29,15 +29,13 @@ export async function extractText(
 
     case 'markdown':
       // Strip markdown formatting, keep the text
-      const raw =
-        typeof content === 'string' ? content : content.toString('utf-8');
+      const raw = typeof content === 'string' ? content : content.toString('utf-8');
       return {
         text: stripMarkdown(raw),
       };
 
     case 'pdf':
-      const buffer =
-        typeof content === 'string' ? Buffer.from(content, 'base64') : content;
+      const buffer = typeof content === 'string' ? Buffer.from(content, 'base64') : content;
       const parsed = await pdfParse(buffer);
       return {
         text: cleanExtractedText(parsed.text),

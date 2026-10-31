@@ -8,7 +8,7 @@ import { setupEventListeners } from './listeners';
 async function startServer() {
   try {
     // setupEventListeners();
-    // setupQueueWorkers();
+    setupQueueWorkers();
     await db.$connect();
     logger.info('Database connected');
 
