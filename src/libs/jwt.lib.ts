@@ -7,7 +7,6 @@ export interface JwtPayload {
   role?: string;
   type: 'access' | 'refresh';
 }
-
 /**
  * Signs a new JWT access token containing essential user claims.
  */

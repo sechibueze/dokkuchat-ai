@@ -1,20 +1,13 @@
 import type { NextFunction, Request, Response } from 'express';
-
 import { ChatService } from '@/services/chat.service';
 
-// import {
-//   conversationListQuerySchema,
-//   conversationParamsSchema,
-//   createConversationSchema,
-//   messageHistoryQuerySchema,
-//   sendMessageSchema,
-// } from './chat.schemas.js';
 import {
   ConversationListQueryInput,
   ConversationParamsInput,
   CreateConversationInput,
   SendMessageInput,
 } from '@/schemas/conversation.schema.js';
+import { logger } from '@/config/logger';
 
 const service = new ChatService();
 
@@ -90,7 +83,7 @@ export class ChatController {
     try {
       const input = req.body as SendMessageInput;
       const params = req.params as ConversationParamsInput;
-
+      logger.info('sendMessage input:', input);
       const result = await service.sendMessage({
         conversationId: params.conversationId,
         userId: req.user?.sub as string,
@@ -98,7 +91,7 @@ export class ChatController {
         documentIds: input.documentIds,
       });
 
-      return res.status(200).json(result);
+      return res.status(200).json({ status: true, data: result });
     } catch (error) {
       next(error);
     }

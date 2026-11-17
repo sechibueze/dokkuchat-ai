@@ -2,7 +2,7 @@
 
 import { db } from '@/config/database';
 import { logger } from '@/config/logger';
-import { ConflictError } from '@/libs/errors.lib';
+import { ConflictError, NotFoundError } from '@/libs/errors.lib';
 import { RAGService } from '@/modules/chat/rag.service';
 
 // import { badRequest, conflict, notFound } from '../../shared/http-error.js';
@@ -97,20 +97,18 @@ export class ChatService {
     const conversation = await db.conversation.findFirst({
       where: {
         id: input.conversationId,
-        // organizationId: input.organizationId,
         userId: input.userId,
       },
       select: {
         id: true,
         title: true,
-        // documentIds: true,
         createdAt: true,
         updatedAt: true,
       },
     });
 
     if (!conversation) {
-      throw new ConflictError('Conversation not found');
+      throw new NotFoundError('Conversation not found');
     }
 
     return conversation;
@@ -193,26 +191,14 @@ export class ChatService {
       documentIds?: string[];
     },
   ) {
-    const conversation = await this.getConversation(input);
+    const conversation = await this.getConversation({
+      userId: input.userId,
+      conversationId: input.conversationId,
+    });
 
-    // const documentIds =
-    //   input.documentIds === undefined ? conversation.documentIds : [...new Set(input.documentIds)];
-
-    // await this.assertDocumentsReady(documentIds);
-
-    // if (input.documentIds !== undefined) {
-    //   await db.conversation.update({
-    //     where: { id: conversation.id },
-    //     data: {
-    //       documentIds,
-    //       updatedAt: new Date(),
-    //     },
-    //   });
-    // }
     const historyRows = await db.conversationMessage.findMany({
       where: {
         conversationId: conversation.id,
-        // organizationId: input.organizationId,
       },
       orderBy: { createdAt: 'desc' },
       take: 10,
@@ -226,8 +212,6 @@ export class ChatService {
       const created = await tx.conversationMessage.create({
         data: {
           conversationId: conversation.id,
-          // organizationId: input.organizationId,
-          // userId: input.userId,
           role: 'user',
           content: input.message,
         },
@@ -251,29 +235,26 @@ export class ChatService {
       question: input.message,
       userId: input.userId,
       maxOutputTokens: 500,
-      // organizationId: input.organizationId,
-      // documentIds,
-      history: historyRows.reverse().filter(
-        (
-          message,
-        ): message is {
-          role: 'user' | 'assistant';
-          content: string;
-        } => message.role === 'user' || message.role === 'assistant',
-      ),
+      // history: historyRows.reverse().filter(
+      //   (
+      //     message,
+      //   ): message is {
+      //     role: 'user' | 'assistant';
+      //     content: string;
+      //   } => message.role === 'user' || message.role === 'assistant',
+      // ),
     });
 
     const assistantMessage = await db.$transaction(async (tx) => {
       const created = await tx.conversationMessage.create({
         data: {
           conversationId: conversation.id,
-          // organizationId: input.organizationId,
           role: 'assistant',
           content: ragResult.answer,
 
           citations: {
             create: ragResult.sources.map((s, i) => ({
-              messageId: userMessage.id,
+              // messageId: userMessage.id,
               documentId: s.documentId,
               chunkId: s.chunkId,
               citationIndex: i,
@@ -301,8 +282,10 @@ export class ChatService {
 
       return created;
     });
-    logger.info('chat ok', {
-      id: 'hu',
+    logger.info('sendMessage result:', {
+      conversationId: conversation.id,
+      userMessage: userMessage.content,
+      assistantMessage: assistantMessage.content,
     });
     return {
       conversationId: conversation.id,

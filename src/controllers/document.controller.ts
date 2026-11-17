@@ -1,7 +1,8 @@
+import { logger } from '@/config/logger';
 import { ForbiddenError } from '@/libs/errors.lib';
 import { createDocumentStorage } from '@/modules/documents/storage/storage.factory';
 import { documentService } from '@/services/document.service';
-import type { Request, Response } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 
 const SORT_FIELDS = ['createdAt', 'title', 'chunkCount'] as const;
 const STATUSES = ['UPLOADED', 'QUEUED', 'PROCESSING', 'READY', 'FAILED'] as const;
@@ -34,18 +35,22 @@ export const documentController = {
     });
   },
 
-  async list(req: Request, res: Response) {
+  async list(req: Request, res: Response, next: NextFunction) {
     const page = Math.max(1, Number(req.query.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
+    try {
+      const result = await documentService.listDocuments(req.user!.sub, {
+        page,
+        limit,
+        search: typeof req.query.search === 'string' ? req.query.search : undefined,
+        sortOrder: req.query.sortOrder === 'asc' ? 'asc' : 'desc',
+      });
 
-    const result = await documentService.listDocuments(req.user!.sub, {
-      page,
-      limit,
-      search: typeof req.query.search === 'string' ? req.query.search : undefined,
-      sortOrder: req.query.sortOrder === 'asc' ? 'asc' : 'desc',
-    });
-
-    res.json({ status: true, ...result });
+      res.json({ status: true, ...result });
+    } catch (error) {
+      logger.error(`Error listing documents for user ${req.user!.sub}: ${error}`);
+      next(error);
+    }
   },
 
   async get(req: Request, res: Response) {

@@ -7,8 +7,8 @@ export interface FindManyParams {
   ownerId: string;
   status?: DocumentStatus;
   search?: string;
-  sortBy: DocumentSortBy;
-  sortOrder: 'asc' | 'desc';
+  sortBy?: DocumentSortBy;
+  sortOrder?: 'asc' | 'desc';
   skip: number;
   take: number;
 }
@@ -55,7 +55,7 @@ export const documentRepository = {
     const [items, total] = await db.$transaction([
       db.document.findMany({
         where,
-        orderBy: { [sortBy]: sortOrder },
+        // orderBy: { [sortBy]: sortOrder },
         skip,
         take,
         select: listSelect,

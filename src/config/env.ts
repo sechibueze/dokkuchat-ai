@@ -15,7 +15,7 @@ const envSchema = z.object({
 
   DATABASE_URL: z.string().min(1),
 
-  REDIS_URL: optionalString,
+  REDIS_URL: optionalString.default('redis://localhost:6379'),
   LOCAL_STORAGE_ROOT: optionalString,
   DOCUMENT_MAX_BYTES: optionalString,
   DOCUMENT_STORAGE_PROVIDER: z.string().min(1),
@@ -24,6 +24,7 @@ const envSchema = z.object({
   AWS_REGION: z.string().min(1),
   AWS_ACCESS_KEY_ID: z.string().min(1),
   AWS_SECRET_ACCESS_KEY: z.string().min(1),
+  AI_PROVIDER: z.string().min(1).default('ollama'),
 
   OPENAI_BASE_URL: z.string().url().default('https://api.openai.com/v1'),
   OPENAI_API_KEY: optionalString,
@@ -38,7 +39,12 @@ const envSchema = z.object({
 
   AUTH_ACCESS_TOKEN_SECRET: z.string().min(1),
   AUTH_REFRESH_TOKEN_SECRET: z.string().min(1),
-  AUTH_ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().min(60).max(3600).default(900000),
+  AUTH_ACCESS_TOKEN_TTL_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(60)
+    .max(3600)
+    .default(24 * 60 * 60 * 1000),
   AUTH_REFRESH_TOKEN_TTL_SECONDS: z.coerce.number().int().min(3600).default(604800),
 });
 

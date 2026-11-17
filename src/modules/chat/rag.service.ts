@@ -1,3 +1,4 @@
+import { logger } from '@/config/logger.js';
 import { createAIProviders } from '../ai/ai.container.js';
 import type { EmbeddingProvider } from '../ai/contracts/embedding-provider.js';
 import type { LLMProvider } from '../ai/contracts/llm-provider.js';
@@ -34,6 +35,12 @@ export class RAGService {
   }): Promise<RAGAnswer> {
     const question = input.question.trim();
 
+    logger.info('RAGService.answer called with input:', {
+      userId: input.userId,
+      question: input.question,
+      maxOutputTokens: input.maxOutputTokens,
+    });
+
     if (!question) {
       throw new Error('Question cannot be empty');
     }
@@ -43,6 +50,25 @@ export class RAGService {
       query: question,
       limit: 5,
     });
+
+    logger.info(`Found ${matches.length} matching document chunks for question: "${question}"`, {
+      matches: matches.map((match) => ({
+        documentId: match.documentId,
+        chunkId: match.chunkId,
+        similarity: match.similarity,
+      })),
+    });
+
+    if (matches.length === 0) {
+      return {
+        answer: "I couldn't find any relevant information to answer your question.",
+        sources: [],
+        usage: {
+          inputTokens: 0,
+          outputTokens: 0,
+        },
+      };
+    }
 
     const context = matches
       .map((match, index) => {

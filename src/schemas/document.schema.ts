@@ -55,8 +55,8 @@ export function validateFileBytes(file: Express.Multer.File): void {
   }
 }
 export const createDocumentSchema = z.object({
-  title: z.string().min(1, 'Title is required').max(500),
-  content: z.string().min(1, 'Content is required'),
+  title: z.string().min(1, 'Title is required').max(500).optional(),
+  content: z.string().min(1, 'Content is required').optional(),
 });
 
 export const documentParamsSchema = z.object({

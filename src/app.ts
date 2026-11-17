@@ -70,6 +70,7 @@ app.use(
 app.disable('x-powered-by');
 app.use(requestLogger);
 app.use(express.json({ limit: '1mb' }));
+app.set('json replacer', (_k: string, v: unknown) => (typeof v === 'bigint' ? Number(v) : v));
 app.use(sanitizeInput);
 app.use((req, res, next) => {
   logger.info({

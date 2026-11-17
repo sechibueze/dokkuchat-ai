@@ -1,6 +1,7 @@
 import { db } from '@/config/database';
 import type { EmbeddingProvider } from '@/modules/ai/contracts/embedding-provider';
 import { createAIProviders } from '../ai/ai.container';
+import { logger } from '@/config/logger';
 
 export interface RetrievedChunk {
   chunkId: string;
@@ -19,7 +20,16 @@ export class RetrievalService {
   }): Promise<RetrievedChunk[]> {
     const limit = Math.max(1, Math.min(input.limit ?? 5, 20));
     const embedded = await aiProvider.embedding.embed(input.query);
-
+    logger.info('RetrievalService.search called with input:', {
+      ownerId: input.ownerId,
+      query: input.query,
+      limit,
+      embedding: {
+        model: embedded.model,
+        inputTokens: embedded.inputTokens,
+        vectorLength: embedded.vector.length,
+      },
+    });
     // pgvector expects a vector literal such as [0.1,0.2,...].
     // Validate every value before constructing the parameter value.
     if (
@@ -40,7 +50,7 @@ export class RetrievalService {
       FROM "Chunk" dc
       INNER JOIN "Document" d ON d.id = dc."documentId"
       WHERE d."ownerId" = ${input.ownerId}::uuid
-        AND d.status = 'READY'
+        -- AND d.status = 'READY'
         AND d."deletedAt" IS NULL
       ORDER BY dc.embedding <=> ${vectorLiteral}::vector
       LIMIT ${limit}

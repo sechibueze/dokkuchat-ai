@@ -98,12 +98,11 @@ export const documentService = {
   },
 
   async listDocuments(userId: string, options: ListDocumentsOptions) {
-    const { page, limit, status, search, sortBy = 'createdAt', sortOrder = 'desc' } = options;
+    const { page, limit, search, sortOrder = 'desc' } = options;
 
     const { items, total } = await documentRepository.findMany({
       ownerId: userId,
       search,
-      sortBy,
       sortOrder,
       skip: (page - 1) * limit,
       take: limit,

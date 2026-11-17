@@ -4,6 +4,7 @@ import type { EmbeddingProvider } from './contracts/embedding-provider.js';
 import type { LLMProvider } from './contracts/llm-provider.js';
 import { OllamaEmbeddingProvider } from './providers/ollama/ollama-embedding.provider.js';
 import { OllamaLLMProvider } from './providers/ollama/ollama-llm.provider.js';
+import { env } from '@/config/env.js';
 
 export interface AIProviders {
   embedding: EmbeddingProvider;
@@ -11,7 +12,7 @@ export interface AIProviders {
 }
 
 export function createAIProviders(): AIProviders {
-  const provider = (process.env.AI_PROVIDER ?? 'ollama') as string;
+  const provider = (env.AI_PROVIDER ?? 'ollama') as string;
 
   switch (provider) {
     case 'openai':

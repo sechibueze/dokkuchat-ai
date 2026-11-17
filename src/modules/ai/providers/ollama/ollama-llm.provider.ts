@@ -22,7 +22,7 @@ interface OllamaChatResponse {
   eval_count?: number;
 }
 
-const DEFAULT_MODEL = process.env.OLLAMA_LLM_MODEL ?? 'qwen3:8b';
+const DEFAULT_MODEL = process.env.OLLAMA_LLM_MODEL ?? 'tinyllama:1.1b';
 // Ollama's default context window is small (4096) and silently truncates long
 // prompts, which is bad for RAG. Set this to what your hardware can handle.
 const NUM_CTX = Number(process.env.OLLAMA_NUM_CTX ?? 8192);

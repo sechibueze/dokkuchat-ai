@@ -1,10 +1,12 @@
 import { Router } from 'express';
 import { authenticate } from '@/middlewares/auth.middleware';
 import { requirePermission } from '@/middlewares/authorize.middleware';
-import { validate } from '@/middlewares/validate.middleware';
+import { validate, validate } from '@/middlewares/validate.middleware';
 import { conditionalGet, setCacheControl } from '../middlewares/etag.middleware';
 import { documentController } from '@/controllers/document.controller';
 import { documentUpload } from '@/middlewares/upload.middleware';
+import { createDocumentSchema, documentIdSchema } from '@/schemas/document.schema';
+import { create } from 'node:domain';
 
 const router = Router();
 router.use(authenticate);
@@ -59,16 +61,16 @@ router.post(
   '/',
   documentUpload.single('doc'),
   // requirePermission('documents:create'),
-  // validate(createDocumentSchema),
+  validate(createDocumentSchema),
   documentController.upload,
 );
 
 // Only documents:delete can delete (admin only)
-// router.delete(
-//   '/:id',
-//   requirePermission('admin:documents:delete', 'documents:delete'),
-//   validate(documentParamsSchema),
-//   deleteDocument,
-// );
+router.delete(
+  '/:id',
+  requirePermission('admin:documents:delete', 'documents:delete'),
+  validate(documentIdSchema),
+  documentController.remove,
+);
 
 export default router;
